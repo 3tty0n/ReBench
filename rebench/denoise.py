@@ -286,7 +286,10 @@ def _restore_perf_sampling():
 
 def _minimize_noise(num_cores, use_nice, use_shielding, for_profiling):
     governor = _set_scaling_governor(SCALING_GOVERNOR_PERFORMANCE, num_cores)
-    no_turbo = _set_no_turbo(True)
+    if not os.path.exists('/sys/devices/system/cpu/intel_pstate'):
+        no_turbo = True
+    else:
+        no_turbo = _set_no_turbo(True)
     perf = _configure_perf_sampling(for_profiling)
 
     can_nice = _can_set_niceness() if use_nice else False
@@ -301,7 +304,10 @@ def _minimize_noise(num_cores, use_nice, use_shielding, for_profiling):
 
 def _restore_standard_settings(num_cores, use_shielding):
     governor = _set_scaling_governor(SCALING_GOVERNOR_POWERSAVE, num_cores)
-    no_turbo = _set_no_turbo(False)
+    if not os.path.exists('/sys/devices/system/cpu/intel_pstate'):
+        no_turbo = False
+    else:
+        no_turbo = _set_no_turbo(True)
     perf = _restore_perf_sampling()
     shielding = _reset_shielding() if use_shielding else False
 

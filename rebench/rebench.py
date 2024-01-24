@@ -134,6 +134,12 @@ Argument:
             default=False,
             help='Print execution plan.'
                  ' This outputs all executions that would be performed, without executing them.')
+        execution.add_argument(
+            '-e', '--send-email', action='store_true', dest='send_email',
+            default=False,
+            help='Send the resulting data to a specified address.'
+                 'You need to set EMAIL_SERVER, EMAIL_PORT, EMAIL_USER and EMAIL_PASS'
+                 'as environment variables.')
 
         data = parser.add_argument_group(
             'Data and Reporting',
@@ -261,20 +267,38 @@ Argument:
 
         runs = self._config.get_runs()
         does_profiling = any(r.is_profiling() for r in runs)
-        if not self._config.options.use_denoise:
-            return self.load_data_and_execute_experiments(runs, data_store, False, False, None)
-        else:
-            denoise_result = None
-            show_denoise_warnings = not (self._config.artifact_review
-                                         or self._config.options.execution_plan)
-            try:
-                denoise_result = minimize_noise(show_denoise_warnings, self.ui, does_profiling)
-                use_nice = denoise_result.use_nice
-                use_shielding = denoise_result.use_shielding
-                return self.load_data_and_execute_experiments(
-                    runs, data_store, use_nice, use_shielding, denoise_result)
-            finally:
-                restore_noise(denoise_result, show_denoise_warnings, self.ui)
+
+        try:
+            if not self._config.options.use_denoise:
+                return self.load_data_and_execute_experiments(runs, data_store, False, False, None)
+            else:
+                denoise_result = None
+                show_denoise_warnings = not (self._config.artifact_review
+                                             or self._config.options.execution_plan)
+                try:
+                    denoise_result = minimize_noise(show_denoise_warnings, self.ui, does_profiling)
+                    use_nice = denoise_result.use_nice
+                    use_shielding = denoise_result.use_shielding
+                    return self.load_data_and_execute_experiments(
+                        runs, data_store, use_nice, use_shielding, denoise_result)
+                finally:
+                    restore_noise(denoise_result, show_denoise_warnings, self.ui)
+        finally:
+            if args.send_email:
+                from .sendemail import EmailSender
+
+                data_file = self._config.data_file
+                if args.data_file:
+                   data_file = args.data_file
+
+                with EmailSender(ui=self.ui, server="prg.is.titech.ac.jp", use_tls=False) as sender:
+                    sender.send(
+                        send_from="izawa@prg.is.titech.ac.jp",
+                        send_to=["izawa@prg.is.titech.ac.jp"],
+                        subject="Benchmark test finished",
+                        message="",
+                        files=[data_file]
+                    )
 
     def load_data_and_execute_experiments(self, runs, data_store,
                                           use_nice, use_shielding, denoise_result):
